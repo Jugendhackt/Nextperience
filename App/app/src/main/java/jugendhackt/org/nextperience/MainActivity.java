@@ -12,29 +12,26 @@ import android.util.Log;
 import android.view.View;
 import android.widget.ImageButton;
 import android.widget.TextView;
-import android.widget.VideoView;
 
-import com.loopj.android.http.RequestParams;
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.JsonArrayRequest;
+import com.android.volley.toolbox.Volley;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.URL;
-
-import javax.net.ssl.HttpsURLConnection;
-
-import static android.os.AsyncTask.Status.PENDING;
-import static android.os.AsyncTask.Status.RUNNING;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 
 public class MainActivity extends AppCompatActivity {
 
     static final int REQUEST_VIDEO_CAPTURE = 1;
     private TextView uriDisplay;
-    private String ip = "";
-    private String response;
+    private String baseUrl = "http://192.168.0.73:3000/tasks";  // This is the API base URL (GitHub API)
+    private String url; // This will hold the full URL which will include the username entered in the etGitHubUser.
+    private RequestQueue requestQueue;
 
 
     @Override
@@ -51,40 +48,8 @@ public class MainActivity extends AppCompatActivity {
         setSupportActionBar(toolbar);
         uriDisplay = (TextView) findViewById(R.id.textView);
 
-        AsyncTask.execute(new Runnable() {
-            @Override
-            public void run() {
-                HttpURLConnection myConnection = null;
-                // Create URL
-                URL endpoint = null;
-                try {
-                    endpoint = new URL("http://jsonplaceholder.typicode.com/posts");
-                } catch (MalformedURLException e) {
-                    e.printStackTrace();
-                }
-                if (endpoint != null) {
-                    try {
-                        myConnection = (HttpURLConnection) endpoint.openConnection();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                myConnection.setRequestProperty("User-Agent", "my-rest-app-v0.1");
-                try {
-                    if (myConnection.getResponseCode() == 200) {
-                        InputStream responseBody = myConnection.getInputStream();
-                        InputStreamReader responseBodyReader = new InputStreamReader(responseBody, "UTF-8");
-                        JsonReader jsonReader = new JsonReader(responseBodyReader);
-                    }
-                    else {
-                        Log.d("RestAufruf","Fehler!");
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        });
+        requestQueue = Volley.newRequestQueue(this); // This setups up a new request queue which we will need to make HTTP requests.
+        getRepoList();
     }
 
 
@@ -101,6 +66,55 @@ public class MainActivity extends AppCompatActivity {
         if (takeVideoIntent.resolveActivity(getPackageManager()) != null) {
             startActivityForResult(takeVideoIntent, REQUEST_VIDEO_CAPTURE);
         }
+    }
+
+    private void getRepoList() {
+        // First, we insert the username into the repo url.
+        // The repo url is defined in GitHubs API docs (https://developer.github.com/v3/repos/).
+        this.url = this.baseUrl;
+
+        // Next, we create a new JsonArrayRequest. This will use Volley to make a HTTP request
+        // that expects a JSON Array Response.
+        // To fully understand this, I'd recommend readng the office docs: https://developer.android.com/training/volley/index.html
+        JsonArrayRequest arrReq = new JsonArrayRequest(Request.Method.GET, url,
+                new Response.Listener<JSONArray>() {
+                    @Override
+                    public void onResponse(JSONArray response) {
+                        // Check the length of our response (to see if the user has any repos)
+                        if (response.length() > 0) {
+                            // The user does have repos, so let's loop through them all.
+                            for (int i = 0; i < response.length(); i++) {
+                                try {
+                                    // For each repo, add a new line to our repo list.
+                                    JSONObject jsonObj = response.getJSONObject(i);
+                                    String description = jsonObj.get("description").toString();
+                                    String tags = jsonObj.get("_id").toString();
+                                    uriDisplay.setText(uriDisplay.getText() + description + tags);
+                                } catch (JSONException e) {
+                                    // If there is an error then output this to the logs.
+                                    Log.e("Volley", "Invalid JSON Object.");
+                                }
+
+                            }
+                        } else {
+                            uriDisplay.setText("No videos found");
+                        }
+
+                    }
+                },
+
+                new Response.ErrorListener() {
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        // If there a HTTP error then add a note to our repo list.
+                        uriDisplay.setText("Error while calling REST API");
+                        Log.e("Volley", error.toString());
+                    }
+                }
+        );
+        // Add the request we just defined to our request queue.
+        // The request queue will automatically handle the request as soon as it can.
+        requestQueue.add(arrReq);
     }
 
 
