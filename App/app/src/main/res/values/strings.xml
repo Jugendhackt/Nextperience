@@ -3,4 +3,5 @@
     <string name="title_home">Videos</string>
     <string name="title_dashboard">Record</string>
     <string name="title_notifications">Personal Settings</string>
+    <string name="title_activity_main">MainActivity</string>
 </resources>
